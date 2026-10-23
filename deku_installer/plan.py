@@ -37,7 +37,7 @@ def validate_plan(plan: Any) -> dict[str, Any]:
     _require(set(plan) == allowed_top, "plan must contain exactly the documented top-level fields")
     _require(plan["schema_version"] == SCHEMA_VERSION, "unsupported schema_version")
     _require(plan["mode"] == "plan-only", "only mode 'plan-only' is supported by this prototype")
-    _require(plan["layout"] in SUPPORTED_LAYOUTS, "unsupported partition layout")
+    _require(isinstance(plan["layout"], str) and plan["layout"] in SUPPORTED_LAYOUTS, "unsupported partition layout")
 
     target = plan["target"]
     _require(isinstance(target, dict), "target must be an object")
@@ -52,7 +52,7 @@ def validate_plan(plan: Any) -> dict[str, Any]:
         prefix = f"actions[{index}]"
         _require(isinstance(action, dict), f"{prefix} must be an object")
         action_type = action.get("type")
-        _require(action_type in SUPPORTED_ACTIONS, f"{prefix} has an unsupported action type")
+        _require(isinstance(action_type, str) and action_type in SUPPORTED_ACTIONS, f"{prefix} has an unsupported action type")
         if action_type == "create_partition_table":
             _require(set(action) == {"type", "table"}, f"{prefix} has invalid fields")
             expected = "gpt" if plan["layout"] == "uefi-gpt" else "mbr"
@@ -64,10 +64,10 @@ def validate_plan(plan: Any) -> dict[str, Any]:
         elif action_type == "create_boot_partition":
             _require(set(action) == {"type", "size_mib", "filesystem"}, f"{prefix} has invalid fields")
             _require(isinstance(action["size_mib"], int) and not isinstance(action["size_mib"], bool) and 128 <= action["size_mib"] <= 4096, f"{prefix}.size_mib must be between 128 and 4096")
-            _require(action["filesystem"] in {"ext4", "xfs"}, f"{prefix}.filesystem is unsupported")
+            _require(isinstance(action["filesystem"], str) and action["filesystem"] in {"ext4", "xfs"}, f"{prefix}.filesystem is unsupported")
         elif action_type == "create_root_partition":
             _require(set(action) == {"type", "filesystem", "remainder"}, f"{prefix} has invalid fields")
-            _require(action["filesystem"] in {"ext4", "xfs", "btrfs"}, f"{prefix}.filesystem is unsupported")
+            _require(isinstance(action["filesystem"], str) and action["filesystem"] in {"ext4", "xfs", "btrfs"}, f"{prefix}.filesystem is unsupported")
             _require(action["remainder"] is True, f"{prefix}.remainder must be true in schema v1")
 
     confirmation = plan["confirmation"]
