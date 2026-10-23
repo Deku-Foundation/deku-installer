@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "mode": "plan-only",
+  "target": {
+    "device_id": "fixture-disk-01",
+    "size_bytes": 34359738368,
+    "model": "Disposable VM disk"
+  },
+  "layout": "uefi-gpt",
+  "actions": [
+    {"type": "create_partition_table", "table": "gpt"},
+    {"type": "create_efi_partition", "size_mib": 512},
+    {"type": "create_root_partition", "filesystem": "ext4", "remainder": true}
+  ],
+  "confirmation": {
+    "required": true,
+    "user_confirmed": false
+  }
+}
