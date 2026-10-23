@@ -38,3 +38,7 @@ The first code milestone validates a JSON plan only. It does not scan real devic
 4. Package deployment adapter after the Deku package format and base artifact are defined.
 5. Storage backend prototype in a disposable VM, with interruption and recovery tests.
 6. Reproducible installer image and boot tests under UEFI and BIOS where supported.
+
+## Plan validator v1 limits
+
+The plan-only validator currently requires an explicit fixture-style device identifier, a supported UEFI/GPT or BIOS/MBR layout, a fixed allowlist of partition actions, an unconfirmed destructive-operation gate, and at least 8 GiB reserved for the root filesystem in addition to any declared EFI/boot partitions. These are prototype validation rules, not final partitioning recommendations. No disk is touched.
