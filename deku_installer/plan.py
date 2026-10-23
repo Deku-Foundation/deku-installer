@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
+MAX_PLAN_BYTES = 1_048_576
+MAX_ACTIONS = 8
 SUPPORTED_LAYOUTS = {"uefi-gpt", "bios-mbr"}
 SUPPORTED_ACTIONS = {
     "create_partition_table",
@@ -26,6 +28,16 @@ def _require(condition: bool, message: str) -> None:
         raise PlanValidationError(message)
 
 
+def _unique_object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Reject duplicate JSON object keys to avoid ambiguous installation plans."""
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise PlanValidationError(f"duplicate JSON object key: {key}")
+        result[key] = value
+    return result
+
+
 def validate_plan(plan: Any) -> dict[str, Any]:
     """Validate a plan-only JSON object and return it unchanged.
 
@@ -35,7 +47,10 @@ def validate_plan(plan: Any) -> dict[str, Any]:
     _require(isinstance(plan, dict), "plan must be a JSON object")
     allowed_top = {"schema_version", "mode", "target", "layout", "actions", "confirmation"}
     _require(set(plan) == allowed_top, "plan must contain exactly the documented top-level fields")
-    _require(plan["schema_version"] == SCHEMA_VERSION, "unsupported schema_version")
+    _require(
+        type(plan["schema_version"]) is int and plan["schema_version"] == SCHEMA_VERSION,
+        "unsupported schema_version",
+    )
     _require(plan["mode"] == "plan-only", "only mode 'plan-only' is supported by this prototype")
     _require(isinstance(plan["layout"], str) and plan["layout"] in SUPPORTED_LAYOUTS, "unsupported partition layout")
 
@@ -47,7 +62,10 @@ def validate_plan(plan: Any) -> dict[str, Any]:
     _require(isinstance(target["model"], str) and 1 <= len(target["model"].strip()) <= 200, "target.model must be a non-empty string of at most 200 characters")
 
     actions = plan["actions"]
-    _require(isinstance(actions, list) and actions, "actions must be a non-empty array")
+    _require(
+        isinstance(actions, list) and 0 < len(actions) <= MAX_ACTIONS,
+        f"actions must be a non-empty array with at most {MAX_ACTIONS} entries",
+    )
     for index, action in enumerate(actions):
         prefix = f"actions[{index}]"
         _require(isinstance(action, dict), f"{prefix} must be an object")
@@ -91,6 +109,7 @@ def validate_plan(plan: Any) -> dict[str, Any]:
     action_types = [item["type"] for item in actions]
     _require(action_types.count("create_partition_table") == 1, "exactly one create_partition_table action is required")
     _require(action_types.count("create_root_partition") == 1, "exactly one create_root_partition action is required")
+    _require(action_types.count("create_boot_partition") <= 1, "at most one create_boot_partition action is allowed")
     if plan["layout"] == "uefi-gpt":
         _require(action_types.count("create_efi_partition") == 1, "uefi-gpt plans require exactly one EFI partition action")
     else:
@@ -101,10 +120,22 @@ def validate_plan(plan: Any) -> dict[str, Any]:
 
 
 def load_and_validate(path: str | Path) -> dict[str, Any]:
-    """Load a UTF-8 JSON plan and validate it."""
+    """Load and validate a bounded UTF-8 JSON plan before any system interaction."""
     try:
-        with Path(path).open("r", encoding="utf-8") as stream:
-            plan = json.load(stream)
-    except (OSError, json.JSONDecodeError) as exc:
-        raise PlanValidationError(f"cannot read valid JSON plan: {exc}") from exc
+        with Path(path).open("rb") as stream:
+            raw = stream.read(MAX_PLAN_BYTES + 1)
+    except OSError as exc:
+        raise PlanValidationError(f"cannot read installation plan: {exc}") from exc
+
+    if len(raw) > MAX_PLAN_BYTES:
+        raise PlanValidationError(f"installation plan exceeds the {MAX_PLAN_BYTES}-byte input limit")
+
+    try:
+        text = raw.decode("utf-8")
+        plan = json.loads(text, object_pairs_hook=_unique_object_pairs)
+    except PlanValidationError:
+        raise
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError) as exc:
+        raise PlanValidationError(f"cannot read valid UTF-8 JSON plan: {exc}") from exc
+
     return validate_plan(plan)
