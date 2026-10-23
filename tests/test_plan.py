@@ -58,7 +58,7 @@ class PlanValidationTests(unittest.TestCase):
     def test_excessive_json_nesting_is_rejected_cleanly(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "deep.json"
-            path.write_bytes(b"[" * 2_000 + b"0" + b"]" * 2_000)
+            path.write_bytes(b"[" * 10_000 + b"0" + b"]" * 10_000)
             with self.assertRaisesRegex(PlanValidationError, "valid UTF-8 JSON"):
                 load_and_validate(path)
 
