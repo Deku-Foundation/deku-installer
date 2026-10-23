@@ -70,6 +70,18 @@ def validate_plan(plan: Any) -> dict[str, Any]:
             _require(isinstance(action["filesystem"], str) and action["filesystem"] in {"ext4", "xfs", "btrfs"}, f"{prefix}.filesystem is unsupported")
             _require(action["remainder"] is True, f"{prefix}.remainder must be true in schema v1")
 
+    # Schema v1 reserves at least 8 GiB for the root filesystem in the plan.
+    # This is only a conservative planning check, not a partitioning implementation.
+    reserved_mib = 8192
+    reserved_mib += sum(
+        action.get("size_mib", 0)
+        for action in actions
+        if action.get("type") in {"create_efi_partition", "create_boot_partition"}
+        and isinstance(action.get("size_mib", 0), int)
+        and not isinstance(action.get("size_mib", 0), bool)
+    )
+    _require(target["size_bytes"] >= reserved_mib * 1024 * 1024, "target disk is too small for the requested layout and minimum root space")
+
     confirmation = plan["confirmation"]
     _require(isinstance(confirmation, dict), "confirmation must be an object")
     _require(set(confirmation) == {"required", "user_confirmed"}, "confirmation must contain required and user_confirmed only")
