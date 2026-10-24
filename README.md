@@ -1,29 +1,17 @@
 # Deku Installer
 
-Deku Installer is the installation and first-boot project for Deku Linux.
+Deku Installer is the installation planning, deployment and recovery project for Deku Linux.
 
 ## Status
 
-**Non-destructive plan-validation prototype.** No installable image or production installer is available. The current code parses and validates an installation plan; it does not discover physical disks, write partitions, format filesystems, mount a target root, install a bootloader, or install an operating system.
+**Non-destructive planner prototype.** It validates an installation plan and computes a deterministic partition layout preview, but it does not discover physical disks, write partition tables, format filesystems, mount a target root, install a bootloader or install an operating system.
 
-## Current prototype
+## Current working code
 
-The plan validator bounds raw JSON to 1 MiB before parsing and rejects duplicate JSON object keys, invalid UTF-8, excessive nesting, unsupported schema versions, boolean schema values, excessive action counts and duplicate boot-partition actions. It validates a plan only; no disk-writing or privileged operations are implemented.
-
-Passing these tests proves that the plan meets the prototype's schema and consistency checks. It does not prove that a machine can be installed, that storage layouts are safe on real hardware, or that an image boots.
-
-## Direction
-
-Evaluate mature upstream installer technology before implementing low-level storage, bootloader and hardware handling from scratch. Fedora's Anaconda is a candidate for technical evaluation because it supports graphical, text and automated installation workflows; no Anaconda source code has been copied into this repository.
-
-## Development principles
-
-- Never run destructive disk operations without explicit confirmation and a tested plan.
-- Separate UI, installation planning, storage operations, package deployment and boot configuration.
-- Keep privileged operations narrow and auditable.
-- Test in disposable virtual machines before hardware claims or release images.
-- Track licenses, provenance, patches and upstream versions for any reused components.
-- Do not advertise unsupported features or publish download links before artifacts exist.
+- `deku_installer/plan.py` validates bounded plan JSON, rejects duplicate keys and unknown actions, requires a safe fixture-style device identifier, enforces layout/action consistency, and keeps destructive confirmation explicitly unset.
+- `deku_installer/layout.py` computes a pure UEFI/GPT or BIOS/MBR preview with 1 MiB alignment, reserved leading/trailing space, fixed EFI/boot sizes, and a minimum 8 GiB root filesystem. It returns byte ranges and does not open device nodes or invoke external tools.
+- `deku_installer/cli.py` prints the preview with exclusive end offsets and the explicit statement `writes_performed=false`.
+- `tests/test_plan.py` and `tests/test_layout.py` exercise malformed plans, size limits, partition order, alignment, overlaps, small disks and non-destructive behavior.
 
 ## Run checks
 
@@ -34,13 +22,21 @@ python -m unittest discover -s tests -v
 PYTHONPATH=. python -m deku_installer.cli examples/dry-run-plan.json
 ```
 
-The CLI validates the example plan only. It does not modify disks or install software.
+The example target is a fixture, not a real block device. The preview is not an implementation recommendation for every disk layout, and it is not a guarantee that partitioning or boot will work on real hardware.
 
-## Planned milestones
+## Upstream installer reuse
 
-1. Record architecture and upstream evaluation criteria.
-2. Define a machine-readable installation plan and validation tests — prototype exists.
-3. Add non-destructive device discovery and plan preview.
-4. Integrate the chosen package deployment and boot configuration paths.
-5. Build and test an installer image in virtual machines.
-6. Consider hardware testing and release engineering only after repeatable VM results.
+See [the Anaconda source reuse and licensing evaluation](docs/anaconda-source-reuse-evaluation.md). No Anaconda code has been copied. The repo currently uses an MIT license; Anaconda is GPL-2.0. A source-derived installer must not be folded into this repo until the maintainers choose a GPL-compatible redistribution strategy and audit its dependencies and assets.
+
+The design should reuse mature upstream storage and boot tooling rather than implement partitioning/filesystems/bootloaders from scratch. The Deku UI, profile flow, language/accessibility experience, backend contracts and recovery evidence can be differentiated while respecting the licenses and provenance of reused components.
+
+## Safety gates before any disk-writing executor
+
+1. Read-only device discovery, with size/model/serial and stable identity shown to the user.
+2. Revalidate the device identity and the exact plan immediately before any destructive action.
+3. Two-step confirmation for destructive writes; never infer the target disk from device order.
+4. A narrow privileged helper that accepts typed validated operations—not arbitrary shell commands.
+5. Disposable virtual-disk tests for UEFI and BIOS layouts, disk-full, interrupted operations, stale device plans and recovery.
+6. An auditable operation journal and explicit handling of cases where automatic rollback is not safe.
+
+No physical-disk writes should be implemented until these boundaries have test coverage.
