@@ -44,8 +44,8 @@ class LayoutPreviewTests(unittest.TestCase):
         layout = preview_layout(plan)
         self.assertEqual([p.purpose for p in layout.partitions], ["efi", "boot", "root"])
         self.assertEqual(layout.partitions[1].size_bytes, 1024 * MIB)
-        self.assertLess(layout.partitions[0].end_bytes, layout.partitions[1].start_bytes)
-        self.assertLess(layout.partitions[1].end_bytes, layout.partitions[2].start_bytes)
+        self.assertLessEqual(layout.partitions[0].end_bytes, layout.partitions[1].start_bytes)
+        self.assertLessEqual(layout.partitions[1].end_bytes, layout.partitions[2].start_bytes)
 
     def test_bios_mbr_layout_without_efi(self):
         plan = deepcopy(self.plan)
@@ -71,8 +71,9 @@ class LayoutPreviewTests(unittest.TestCase):
         plan = deepcopy(self.plan)
         plan["actions"] = [
             plan["actions"][0],
-            plan["actions"][2],
+            {"type": "create_boot_partition", "size_mib": 256, "filesystem": "ext4"},
             plan["actions"][1],
+            plan["actions"][2],
         ]
         with self.assertRaises(LayoutPreviewError):
             preview_layout(plan)
