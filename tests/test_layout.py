@@ -63,7 +63,7 @@ class LayoutPreviewTests(unittest.TestCase):
 
     def test_small_disk_is_rejected_by_preview(self):
         plan = deepcopy(self.plan)
-        plan["target"]["size_bytes"] = 9 * 1024 * 1024 * 1024
+        plan["target"]["size_bytes"] = 8704 * MIB
         with self.assertRaises(LayoutPreviewError):
             preview_layout(plan)
 
