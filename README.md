@@ -1,6 +1,6 @@
 # Deku Installer
 
-Deku Installer is the installation planning, deployment and recovery project for Deku Linux.
+Deku Installer currently validates installation plans and calculates a partition-layout preview for Deku Linux. It does not discover physical disks, change partition tables, format filesystems or install an operating system.
 
 ## Status
 
